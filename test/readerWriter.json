@@ -258,26 +258,7 @@
       "Zome": "readAndWritePosts",
       "FnName": "readPostsByCity",
       "Input": "Vancouver",
-      "Output": [
-        {
-          "title": "Free Cat, Loves Kids",
-          "category": "ForSale",
-          "city": "Vancouver",
-          "details":
-            "A wonderful companion. Loves belly rubs! Serious offers only.",
-          "email": "ktown@gmail.com",
-          "timestamp": 123456
-        },
-        {
-          "title": "Great Bike",
-          "category": "ForSale",
-          "city": "Vancouver",
-          "details":
-            "Rode this bike for 10 years. Selling it because I'm moving.",
-          "email": "fakeperson@gmail.com",
-          "timestamp": 12345
-        }
-      ]
+      "Regexp": ".*Vancouver.*Vancouver.*"
     }
   ]
 }
