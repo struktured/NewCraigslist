@@ -1,13 +1,11 @@
 open Hc
 
 type peer_link = {
-  links : link array [@bs.as "Links"]
+  links : link_entry array [@bs.as "Links"]
 } [@@bs.deriving abstract]
 
-module Genesis : sig
-  val genesis : unit -> bool
-end = struct
-  let genesis =
+module Genesis = struct
+  let genesis () =
     let () =
       (ignore : hash_string -> unit)
       (commit
@@ -16,10 +14,10 @@ end = struct
           (peer_link
             ~links:
             [|
-              (link
+              (link_entry
                  ~base:App.DNA.hash
-                 ~tag:"peer"
                  ~link:App.Key.hash
+                 ~tag:"peer"
               )
             |]
           )
@@ -28,8 +26,80 @@ end = struct
     true
 end
 
-module SendReceive : SendReceive = struct
+module SendReceive = SendReceive.Make(struct
+  type input = string
+  type output = string
+  let receive _from msg = msg
+end)
+
+module PeerEntry : Entry.S0 = struct
+  type t = {
+    me : bool;
+    address : hash_string;
+  } [@@bs.deriving abstract]
+
+  let name = "peer"
+
+  let validate_commit ~package:_ ~sources:_ _t = true
+  let validate_put ~header:_ ~package:_ ~sources:_ _t = true
+  let validate_mod ~header:_ ~replaces:_ ~package:_ ~sources:_ _t = true
+  let validate_del ~hash:_ ~package:_ ~sources:_ = true
+  let validate_link ~hash:_ ~package:_ ~sources:_ ~links:_ = true
+
+  let validate_put_pkg () = Js.Json.null
+  let validate_mod_pkg () = Js.Json.null
+  let validate_del_pkg () = Js.Json.null
+  let validate_link_pkg () = Js.Json.null
 end
+
+module GetPeers : Function.S0 = struct
+  type input = unit
+  [@@bs.deriving abstract]
+
+  type output = {
+    me : bool;
+    address : hash_string;
+  } [@@bs.deriving abstract]
+
+  let name = "getPeers"
+end
+
+let getPeers () = failwith "nyi"
+(*
+  let possiblePeers =
+    get_links
+      ~base:App.DNA.Hash
+      ~tag:"peer"
+      ~options:Js.Json.null
+  in
+  Array.map (fun p ->
+    hash p
+
+  ) possiblePeers
+  possiblePeers.forEach(function (p) {
+    // try sending a message to peer
+    try {
+      var res = send(p.Hash, {msg:"hi"})
+      // they're online
+      peers.push({
+        me: p.Hash === App.Key.Hash,
+        address: p.Hash
+      })
+    } catch(e) {}
+  })
+return peers
+*)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
