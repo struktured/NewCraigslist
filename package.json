@@ -1,0 +1,24 @@
+{
+  "name": "new-craigslist",
+  "version": "0.1.0",
+  "scripts": {
+    "clean": "bsb -clean-world",
+    "build": "bsb -make-world",
+    "watch": "bsb -make-world -w"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stuktured/bs-holochain.git"
+  },
+  "keywords": [
+    "BuckleScript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "bs-platform": "^3.0.0"
+  },
+  "dependencies": {
+    "bs-holochain": "0.1.0"
+  }
+}

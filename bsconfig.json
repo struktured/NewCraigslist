@@ -1,0 +1,29 @@
+{
+  "name": "new-craigslist",
+  "version": "0.1.0",
+  "sources": 
+    [
+      {
+        "dir" : "dna/peerVis",
+        "subdirs" : false,
+        "public" : "all"
+      },
+      {
+        "dir" : "dna/readAndWritePosts",
+        "subdirs" : false,
+        "public" : "all"
+      }
+    ],
+  "package-specs": {
+    "module": "commonjs",
+    "in-source": true
+  },
+  "suffix": ".bs.js",
+  "bs-dependencies": [
+    "bs-holochain"
+  ],
+  "warnings": {
+    "error" : "-101"
+  },
+  "refmt": 3
+}
