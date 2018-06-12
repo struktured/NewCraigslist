@@ -1,110 +1,109 @@
 open Hc
+module Z =
+struct let name = "peerVis" end (* TODO add this instantiation arg to builder *)
+module PeerLink =
+struct
+type t =
+  {
+    links : link array [@bs.as "Links"]
+  } [@@bs.deriving abstract]
 
-type peer_link = {
-  links : link array [@bs.as "Links"]
-} [@@bs.deriving abstract]
+  (* TODO - wrong: should be provided by B.Add *)
+  include (
+    Entry.Make(struct
+      let name = "peerLink"
+      type nonrec t = t
+    end) : Entry.S with type t := t
+  )
+end
 
-module Genesis : sig
+
+module Genesis :
+sig
   val genesis : unit -> bool
 end = struct
-  let genesis =
-    let () =
-      (ignore : hash_string -> unit)
-      (commit
-        ~entry_type:"peerLink"
-        ~entry:
-          (peer_link
-            ~links:
-            [|
-              (link
-                 ~base:App.DNA.hash
-                 ~tag:"peer"
-                 ~link:App.Key.hash
-              )
-            |]
-          )
-      )
+  let genesis () =
+    let hash = PeerLink.commit
+        (PeerLink.t
+           ~links:
+             [|
+               (link
+                  ~base:App.DNA.hash
+                  ~tag:(Some "peer")
+                  ~to_:App.Key.hash
+               )
+             |]
+        )
     in
+    Js.log2 "genesis: hash=" hash;
     true
 end
 
-module SendReceive : SendReceive = struct
+ 
+module Sendreceive = struct
+  module T = struct
+    type input = { msg:string } [@@deriving bs.abstract]
+    type output = string [@@deriving bs.abstract]
+    let receive (_:hashString) {msg} =
+      Js.log2 "receive: " msg;
+      msg
+  end
+  include Sendreceive.Make(T)
 end
 
+module ValidatePeerLink : Validate.S with type t = PeerLink.t = struct
+  type t = PeerLink.t
+
+  let validateCommit
+      ~package:_ ~sources:_ _t = true
+  let validatePut
+       ~header:_ ~package:_ ~sources:_ _t = true
+  let validateMod
+       ~header:_
+      ~replaces:_ ~package:_ ~sources:_ _t = true
+  let validateDel
+      ~hash:_ ~package:_ ~sources:_ = true
+  let validateLink
+       ~hash:_ ~package:_ ~sources:_ ~links:_ = true
+  let validatePutPkg () = Js.Json.null
+  let validateModPkg () = Js.Json.null
+  let validateDelPkg () = Js.Json.null
+  let validateLinkPkg () = Js.Json.null
+end
+
+module GetPeers = struct
+module T = struct
+  let name = "getPeers"
+  type input = unit
+  type output = {me:bool;address:hashString} [@@deriving bs.abstract]
+end
+include Function.Make(Z)(T)
+end
+
+let getPeers() =
+  let possiblePeers =
+    Zome.GetLinks.getLinks
+      ?options:None
+      ~base:App.DNA.hash ~tag:"peer" in
+      Belt_Array.keepMap possiblePeers
+        (function
+          | `Hash hash ->
+            (try
+               let _res = Sendreceive.send (*hash*)
+                   Sendreceive.{msg="hi"} in
+               Some
+                 (GetPeers.T.
+                    {me=hash = App.Key.hash;
+                     address=hash
+                    }
+                 )
+             with _ -> None
+            )
+          | `Packed _ -> assert false (* TODO make this impossible by virtue of type signatures *)
+        )
 
 
-(*open Hc*)
-(*type link_entry = {*)
-(*  base : string [@bs.as "Base"];*)
-(*  tag : string [@bs.as "Tag"];*)
-(*  link : string [@bs.as "Link"]*)
-(*} [@@bs.deriving abstract]*)
+module B = Zome.Builder()
+module PeerLink' = B.Add(PeerLink)(ValidatePeerLink)
 
-
-(*(*class peer_link2 =*)
-(*  object*)
-(*    method links:link_entry array [@bs.set]*)
-(*  end*)
-(**)*)
-(*module Callbacks : REQUIRED = struct*)
-
-(*  let genesis () =*)
-(*    let _hash = commit*)
-(*      ~entry_type:"peerLink"*)
-(*      ~entry:(peer_link*)
-(*      ~links:*)
-(*        [|*)
-(*          (link_entry*)
-(*             ~base:App.DNA.hash*)
-(*             ~tag:"peer"*)
-(*             ~link:App.Key.hash*)
-(*          )*)
-(*        |]*)
-(*      ) in true*)
-
-(*  let validateCommit*)
-(*      ~entry_type:_ ~entry:_ ~package:_ ~sources:_ = true*)
-(*  let validatePut*)
-(*      ~entry_type:_ ~entry:_ ~header:_ ~package:_ ~sources:_ = true*)
-(*  let validateMod*)
-(*      ~entry_type:_ ~entry:_ ~header:_*)
-(*      ~replaces:_ ~package:_ ~sources:_ = true*)
-(*  let validateDel*)
-(*      ~entry_type:_ ~hash:_ ~package:_ ~sources:_ = true*)
-(*  let validateLink*)
-(*      ~entry_type:_ ~hash:_*)
-(*      ~links:_ ~package:_ ~sources:_ = true*)
-(*  let validatePutPkg ~entry_type:_ : 'a Js.t = failwith "nyi"*)
-(*  let validateModPkg  ~entry_type:_ : 'a Js.t = failwith "nyi"*)
-(*  let validateDelPkg  ~entry_type:_ : 'a Js.t = failwith "nyi"*)
-
-(*  let validateLinkPkg  ~entry_type:_ = failwith "nyi"*)
-
-(*end*)
-
-(*let getPeers() = failwith "nyi"*)
-
-(*let possiblePeers =*)
-(*  let possible_peers = get_links ~base:App.DNA.hash ~tag:"peer" in*)
-(*  List.map possible_peers ~f:*)
-(*    (fun p ->*)
-(*       let res = send (* *)*)
-
-(*  // try contacting each peer*)
-(*  possiblePeers.forEach(function (p) {*)
-(*    // try sending a message to peer*)
-(*    try {*)
-(*      var res = send(p.Hash, {msg:"hi"})*)
-(*      // they're online*)
-(*      peers.push({*)
-(*        me: p.Hash === App.Key.Hash,*)
-(*        address: p.Hash*)
-(*      })*)
-(*    } catch(e) {}*)
-(*  })*)
-(*  return peers*)
-(*}*)
-
-(*(*function receive(from, msg) {*)
-(*  return "hi"*)
-(*}*)*)
+include B.Build(Genesis)(Sendreceive)
