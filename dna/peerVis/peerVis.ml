@@ -5,7 +5,7 @@ module PeerLink =
 struct
 type t =
   {
-    links : link array [@bs.as "Links"]
+    links : Link.t array [@bs.as "Links"]
   } [@@bs.deriving abstract]
 
   (* TODO - wrong: should be provided by B.Add *)
@@ -27,7 +27,7 @@ end = struct
         (PeerLink.t
            ~links:
              [|
-               (link
+               (Link.t
                   ~base:App.DNA.hash
                   ~tag:(Some "peer")
                   ~to_:App.Key.hash
@@ -73,11 +73,12 @@ end
 
 module GetPeers = struct
 module T = struct
+  module Zome = Z
   let name = "getPeers"
   type input = unit
   type output = {me:bool;address:hashString} [@@deriving bs.abstract]
 end
-include Function.Make(Z)(T)
+include Function.Make(T)
 end
 
 let getPeers() =
@@ -89,8 +90,8 @@ let getPeers() =
         (function
           | `Hash hash ->
             (try
-               let _res = Sendreceive.send (*hash*)
-                   Sendreceive.{msg="hi"} in
+               let _res = Sendreceive.send hash
+                   Sendreceive.T.{msg="hi"} in
                Some
                  (GetPeers.T.
                     {me=hash = App.Key.hash;

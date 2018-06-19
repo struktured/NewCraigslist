@@ -17,7 +17,7 @@
     {
       "Name": "peerVis",
       "Desription": "show whos online",
-      "CodeFile": "peerVis.js",
+      "CodeFile": "peerVis.bs.js",
       "RibosomeType": "js",
       "Config": {
         "ErrorHandling": "throwErrors"
