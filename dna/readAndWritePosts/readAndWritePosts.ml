@@ -1,13 +1,15 @@
 open Hc
+open Printf
+
 (* CONSTANTS *)
-let cITY_LINKS = "cityLinks"
-let cITY = "city"
-let pOST_DATA = "postData"
-let cATEGORY = "category"
-let cITY_AND_CATEGORY = "cityAndCat"
-let pOSTS_BY_USER = "postsByUser"
-let pOSTS_BY_CITY = "postsByCity"
-let pOSTS_BY_CATEGORY = "postsByCategory"
+let cityLinks = "cityLinks"
+let city = "city"
+let postData = "postData"
+let category = "category"
+let cityAndCategory = "cityAndCat"
+let postsByUser = "postsByUser"
+let postsByCity = "postsByCity"
+let postsByCategory = "postsByCategory"
 
 module Z : Zome.S0 =
 struct
@@ -46,12 +48,16 @@ struct
   module type S =
   sig
     include Entry.S with type t = string
+    include Validate.S with type t := t
   end
 
   module Make(E:S0) : S with type t = string =
   struct
     include Entry.Make(E)
+    include (Validate.Accept_all(E) :
+               Validate.S with type t := t)
   end
+
 end
 
 module City =
@@ -73,7 +79,7 @@ module Category =
 module CityAndCat =
   StringEntry.Make
     (struct
-      let name = "cityAndCat"
+      let name = cityAndCategory
       type t = string
     end
     )
@@ -82,7 +88,7 @@ module CityLinks =
   Entry.Make
     (struct
       let name = "cityLinks"
-      type t = (City.t , City.t) Types.Link.t array
+      type t = Links.t
     end
     )
 
@@ -121,58 +127,6 @@ let linkCheck
     )
   | Some _ -> ()
 
-module G : Genesis.S =
-struct
-(**
- * if Whenever the app is restarted, the chain is re-generated.
- * The genesis function gets called each time this happens.
- * This function is a good place to put any set-up logic if req'd
- **)
-  let genesis () = true
-end
-
-(**
- * Called whenever a write/commmit call is made
- *
-function validateCommit(entryName, entry, header, pkg, sources) {
-  switch (entryName) {
-    case CITY_LINKS:
-      return true;
-    case POST_DATA:
-      return true;
-    case CITY:
-      return true;
-    case CATEGORY:
-      return true;
-    case CITY_AND_CATEGORY:
-      return true;
-    default:
-      return false;
-  }
-}
-*)
-
-(*
-function validateLink(links) {
-  return true;
-}
-
-function validateLinkPkg(entryType) {
-  return null;
-}
-
-function validatePut(data) {
-  return true;
-}
-
-function validateDel(entry_type, hash, pkg, sources) {
-  return get(hash) !== null;
-}
-
-function validateMod(entry_type, entry, header, replaces, pkg, sources) {
-  return true;
-}
-*)
 
 (**
  * @param data is the post as a JSON object
@@ -181,210 +135,196 @@ function validateMod(entry_type, entry, header, replaces, pkg, sources) {
  * - agent hash
  * - city provided in the data
  * - category provided in the data
- * - city and category provided in the data
-
- let writePost data {
-  var hash;
-  try {
-    hash = PostData.commit commit(POST_DATA, data);
-  } catch (exception) {
-    debug("Error writing " + data + exception);
-    return null;
-  }
-
-  var me = App.Agent.Hash;
-  var cityAndCat = makeHash(CITY_AND_CATEGORY, data[CITY] + data[CATEGORY]);
-
-  // Check and create any links that may not yet exist
-  linkCheck(CITY_AND_CATEGORY, data[CITY] + data[CATEGORY]);
-  linkCheck(CITY, data[CITY]);
-  linkCheck(CATEGORY, data[CATEGORY]);
-
-  try {
-    commit(CITY_LINKS, {
-      Links: [
-        { Base: me, Link: hash, Tag: POSTS_BY_USER },
-        {
-          Base: makeHash(CITY, data[CITY]),
-          Link: hash,
-          Tag: POSTS_BY_CITY
-        },
-        {
-          Base: makeHash(CATEGORY, data[CATEGORY]),
-          Link: hash,
-          Tag: POSTS_BY_CATEGORY
-        },
-        {
-          Base: cityAndCat,
-          Link: hash,
-          Tag: CITY_AND_CATEGORY
-        }
-      ]
-    });
-  } catch (exception) {
-    debug("Error committing links " + exception);
-    return null;
-  }
-  //debug(hash);
-  return hash;
-}
-*)
+ * - city and category provided in the data *)
+ let writePost data =
+   let hash =
+  try
+    Some (PostData.commit data)
+  with e ->
+    debug
+      (Printf.sprintf "Error writing %s %s"
+         (Js.Json.stringify (PostData.toJson data))
+         (Printexc.to_string e)
+      );
+    None
+   in
+   let me = App.Agent.hash in
+   let cityAndCat = CityAndCat.makeHash
+       (data.city ^ data.category) in
+  (* Check and create any links that may not yet exist *)
+    linkCheck (module CityAndCat) (data.city ^ data.category);
+    linkCheck (module City) data.city;
+    linkCheck (module Category) data.category;
+  match hash with None -> failwith "no hash" | Some hash ->
+  try
+    CityLinks.commit
+      (
+        Links.t
+      [|
+        Links.Link.t
+          ~tag:postsByUser
+          ~base:me
+          ~link:hash
+          ();
+        Links.Link.t
+          ~base:(City.makeHash data.city)
+          ~link:hash
+          ~tag:postsByCity
+          ();
+        Links.Link.t
+          ~base:(Category.makeHash data.category)
+          ~link:hash
+          ~tag:postsByCategory
+          ();
+        Links.Link.t
+          ~base:cityAndCat
+          ~link:hash
+          ~tag:CityAndCat.name
+          ()
+      |]
+      ) |> fun x -> Some x
+  with e ->
+    debug (sprintf "Error committing links %s" (Printexc.to_string e));
+    None
 
 (**
  * @param hash is hashedLink we are retrieving (ie. target value)
  * @param tag is the tag given when the link was created (ie. the relationship btwn link and base)
- * @returns an array of entries matching the hash given
+ * @returns an array of entries matching the hash given *)
+let retrieveLinks
+    (type entry)
+    (module Entry : Entry.S with type t = entry) hash tag :
+  entry array =
+  (* if link doesn't exist then return emptyif (get(hash) === null) return [];*)
+  (try
+     Links.get ~tag ~base:hash
+       ~options:
+         (Links.Options.t
+            ~load:true
+            ~statusMask:Constants.System.Status.any
+         )
+   with e ->
+     debug("Unable to retrieve links " ^ (Printexc.to_string e));
+     [||]
+  ) |>
+  Links.unpack (module Entry) |> fun arr ->
+  Belt_Array.map arr (fun {entry} -> entry)
 
-function retrieveLinks(hash, tag) {
-  // if link doesn't exist then return empty
-  if (get(hash) === null) return [];
-
-  try {
-    var allLinks = getLinks(hash, tag, {
-      Load: true
-    });
-  } catch (exception) {
-    debug("Unable to retrieve links " + exception);
-  }
-  //debug("Number of links: " + allLinks.length);
-  return allLinks.map(function(link) {
-    //debug(JSON.stringify(link));
-    return link.Entry;
-  });
-}
-*)
 
 (**
  * @returns all the posts of the current user
-
-function readYourPosts() {
-  return retrieveLinks(App.Agent.Hash, POSTS_BY_USER);
-}
 *)
+
+let readYourPosts() =
+  retrieveLinks (module PostData) App.Agent.hash postsByUser
 
 (**
  * @param city name
  * @returns all the posts for the given city
+ *)
 
-function readPostsByCity(city) {
-  return retrieveLinks(makeHash(CITY, city), POSTS_BY_CITY);
-}
-*)
+let readPostsByCity city =
+  retrieveLinks (module City) (City.makeHash city) postsByCity
 
 (**
  * @param category name
  * @returns all the posts for the given category
+ *)
 
-function readPostsByCategory(category) {
-  return retrieveLinks(makeHash(CATEGORY, category), POSTS_BY_CATEGORY);
-}
-*)
+let readPostsByCategory category =
+  retrieveLinks (module Category) (Category.makeHash category) postsByCategory
 
 (**
  * @param data is a JSON object: {"city":<name_of_city>, "category": <name_of_category}
- * @returns all the posts for the given city and category
+ * @returns all the posts for the given city and category 
+ *)
 
-function readPostsByCityAndCategory(data) {
-  var hashedCat = makeHash(CITY_AND_CATEGORY, data.city + data.category);
-  return retrieveLinks(hashedCat, CITY_AND_CATEGORY);
-}
-*)
+let readPostsByCityAndCategory (data:PostData.t) =
+  let hashedCat = CityAndCat.makeHash
+      (data.city ^ data.category) in
+  retrieveLinks (module CityAndCat) hashedCat cityAndCategory
 
 (**
  * @param data is a JSON object {"post":{<new data>}, "oldHash": "<previous_hash>"}
- * @returns hash of the updated post
- 
-function editPost(data) {
-  var hash;
-  try {
-    hash = update(POST_DATA, data.post, data.oldHash);
-  } catch (exception) {
-    debug("Update not made: " + exception);
-    return data.oldHash;
-  }
+ * @returns hash of the updated post *)
 
-  return hash;
-}
-*)
+let editPost post oldHash =
+  try
+    PostData.update post oldHash
+  with e ->
+    debug("Update not made: " ^ (Printexc.to_string e));
+    oldHash
 
 (**
  * @param postHash is the hash of the post to delete
  * @returns true if the deletion was successful and false otherwise
- *
-function removePost(postHash) {
-  if (deleteLinks(postHash)) {
-    return deletePost(postHash);
-  }
-  return false;
-}
-*)
-
+ *)
+let rec removePost postHash =
+  match deleteLinks postHash with
+  | true ->
+    deletePost postHash
+  | false -> false
 (**
  * @param postHash is the hash of the post to delete
  * @returns true if the deletion was successful and false otherwise
- *
-function deletePost(postHash) {
-  var deleteMsg = postHash + " deleted by " + App.Agent.Hash;
-  try {
-    remove(postHash, deleteMsg);
-  } catch (exception) {
-    //debug(postHash + " not deleted: " + exception);
-    return false;
-  }
-  return true;
-}
-   *)
+ *)
+and deletePost postHash =
+  let message = postHash ^ " deleted by " ^ App.Agent.hash in
+  try
+    let _hash = PostData.remove ~message postHash in true
+  with _e ->
+   (*debug(postHash + " not deleted: " + exception);*)
+    false
 (**
  * @param postHash is the hash of the post to delete
  * @returns true if the links were deleted and false otherwise
- **
-function deleteLinks(postHash) {
-  var me = App.Agent.Hash;
-  var data = get(postHash);
+ *)
+and deleteLinks postHash =
+  let me = App.Agent.hash in
+  match PostData.get postHash with
+  | None -> false
+  | Some data ->
+    let cityAndCat = CityAndCat.makeHash (data.city ^ data.category) in
+  try
+    CityLinks.commit
+      (Links.
+         (t
+            [|
+              Link.t
+                ~base:me
+                ~link:postHash
+                ~tag:postsByUser
+                ~linkAction:System.LinkAction.del
+                ()
+              ;
+              Link.t
+                ~base:(City.makeHash data.city)
+                ~link:postHash
+                ~tag:postsByCity
+                ~linkAction:System.LinkAction.del
+                ()
+              ;
+              Link.t
+                ~base:(Category.makeHash data.category)
+                ~link:postHash
+                ~tag:postsByCategory
+                ~linkAction:System.LinkAction.del
+                ()
+              ;
+              Link.t
+                ~base:cityAndCat
+                ~link:postHash
+                ~tag:cityAndCategory
+                ~linkAction:System.LinkAction.del
+                ()
+            |]
+         )
+      ) |> fun _hash -> true
+  with e ->
+    debug("Links not deleted: " ^ (Printexc.to_string e));
+    false
 
-  if (data == null) return false;
-
-  var cityAndCat = makeHash(CITY_AND_CATEGORY, data[CITY] + data[CATEGORY]);
-  try {
-    commit(CITY_LINKS, {
-      Links: [
-        {
-          Base: me,
-          Link: postHash,
-          Tag: POSTS_BY_USER,
-          LinkAction: HC.LinkAction.Del
-        },
-        {
-          Base: makeHash(CITY, data[CITY]),
-          Link: postHash,
-          Tag: POSTS_BY_CITY,
-          LinkAction: HC.LinkAction.Del
-        },
-        {
-          Base: makeHash(CATEGORY, data[CATEGORY]),
-          Link: postHash,
-          Tag: POSTS_BY_CATEGORY,
-          LinkAction: HC.LinkAction.Del
-        },
-        {
-          Base: cityAndCat,
-          Link: postHash,
-          Tag: CITY_AND_CATEGORY,
-          LinkAction: HC.LinkAction.Del
-        }
-      ]
-    });
-  } catch (exception) {
-    debug("Links not deleted: " + exception);
-    return false;
-  }
-  return true;
-}
-*)
-   (**
-function readPost(hash) {
-  // get returns entry corresponding to the hash
-  // or a HashNotFound message
-  return get(hash, { Local: true });
-}
-   *)
+let readPost hash  =
+  (* get returns entry corresponding to the hash
+     or a HashNotFound message *)
+  PostData.get hash ~options:(Entry.GetOptions.t ~local:true ())

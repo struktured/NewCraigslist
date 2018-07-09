@@ -1,12 +1,14 @@
 open Hc
+
+
 module Z =
-struct let name = "peerVis" end (* TODO add this instantiation arg to builder *)
+  struct
+    let name = "peerVis"
+  end (* TODO add this instantiation arg to builder *)
+
 module PeerLink =
 struct
-type t =
-  {
-    links : Link.t array [@bs.as "Links"]
-  } [@@bs.deriving abstract]
+  include Links
 
   (* TODO - wrong: should be provided by B.Add *)
   include (
@@ -18,83 +20,67 @@ type t =
 end
 
 
-module Genesis :
-sig
-  val genesis : unit -> bool
-end = struct
+module Genesis : Genesis.S = struct
   let genesis () =
     let hash = PeerLink.commit
-        (PeerLink.t
-           ~links:
+        (PeerLink.
+           (t
              [|
                (Link.t
-                  ~base:App.DNA.hash
-                  ~tag:(Some "peer")
-                  ~to_:App.Key.hash
+                  ~base:(App.DNA.hash :> App.DNA.hash)
+                  ~tag:"peer"
+                  ~link:App.Key.hash
+                  ()
                )
              |]
+           )
         )
     in
     Js.log2 "genesis: hash=" hash;
     true
 end
 
- 
+
 module Sendreceive = struct
   module T = struct
     type input = { msg:string } [@@deriving bs.abstract]
     type output = string [@@deriving bs.abstract]
-    let receive (_:hashString) {msg} =
+    let receive (_:App.Agent.hash) {msg} =
       Js.log2 "receive: " msg;
       msg
   end
   include Sendreceive.Make(T)
 end
 
-module ValidatePeerLink : Validate.S with type t = PeerLink.t = struct
-  type t = PeerLink.t
-
-  let validateCommit
-      ~package:_ ~sources:_ _t = true
-  let validatePut
-       ~header:_ ~package:_ ~sources:_ _t = true
-  let validateMod
-       ~header:_
-      ~replaces:_ ~package:_ ~sources:_ _t = true
-  let validateDel
-      ~hash:_ ~package:_ ~sources:_ = true
-  let validateLink
-       ~hash:_ ~package:_ ~sources:_ ~links:_ = true
-  let validatePutPkg () = Js.Json.null
-  let validateModPkg () = Js.Json.null
-  let validateDelPkg () = Js.Json.null
-  let validateLinkPkg () = Js.Json.null
-end
+module ValidatePeerLink : Validate.S with type t = PeerLink.t =
+  Validate.Accept_all(PeerLink)
 
 module GetPeers = struct
 module T = struct
   module Zome = Z
   let name = "getPeers"
   type input = unit
-  type output = {me:bool;address:hashString} [@@deriving bs.abstract]
+  type output = {me:bool;address:[`Key] HashString.t} [@@deriving bs.abstract]
 end
 include Function.Make(T)
 end
 
 let getPeers() =
   let possiblePeers =
-    Zome.GetLinks.getLinks
+  Links.get
       ?options:None
       ~base:App.DNA.hash ~tag:"peer" in
       Belt_Array.keepMap possiblePeers
         (function
           | `Hash hash ->
             (try
-               let _res = Sendreceive.send hash
+               let hashString = (HashString.create hash :> App.Key.hash) in
+               let _res =
+                 Sendreceive.send hashString
                    Sendreceive.T.{msg="hi"} in
                Some
                  (GetPeers.T.
-                    {me=hash = App.Key.hash;
+                    {me=HashString.equals App.Key.hash hashString;
                      address=hash
                     }
                  )
