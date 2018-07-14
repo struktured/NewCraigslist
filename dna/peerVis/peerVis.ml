@@ -90,7 +90,7 @@ let getPeers() =
         )
 
 
-module B = Zome.Builder()
-module PeerLink' = B.Add(PeerLink)(ValidatePeerLink)
+module B = Zome.Builder(Z)
+module PeerLink' = B.Entry(PeerLink)(ValidatePeerLink)
 
 include B.Build(Genesis)(Sendreceive)

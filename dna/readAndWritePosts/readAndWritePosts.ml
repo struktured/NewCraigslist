@@ -17,25 +17,27 @@ struct
 end
 
 
+module Builder = Zome.Builder (Z)
+
 (**  Entries **)
 
-
 module PostData =
-struct
+  struct
 
   module T = struct
     let name = "postData"
     type t =
       {
-        title: string;
-        category : string;
-        subcategory: string option;
+        title:string;
+        category:string;
+        subcategory:string option;
         city:string;
         email:string;
         timestamp:int;
       } [@@deriving bs.abstract]
   end
-  include Entry.Make(T)
+  module Validate = Validate.Accept_all(T)
+  include Builder.Entry0(T)(Validate)
 end
 
 module StringEntry =
@@ -48,14 +50,11 @@ struct
   module type S =
   sig
     include Entry.S with type t = string
-    include Validate.S with type t := t
   end
 
   module Make(E:S0) : S with type t = string =
   struct
-    include Entry.Make(E)
-    include (Validate.Accept_all(E) :
-               Validate.S with type t := t)
+    include Builder.Entry0(E)(Validate.Accept_all(E))
   end
 
 end
@@ -85,13 +84,14 @@ module CityAndCat =
     )
 
 module CityLinks =
-  Entry.Make
-    (struct
-      let name = "cityLinks"
-      type t = Links.t
-    end
-    )
-
+  struct
+      module T =
+        struct
+          let name = "cityLinks"
+          type t = Links.t
+        end
+  include Builder.Entry0(T)(Validate.Accept_all(T))
+end
 (**
  * @param key is the tag the link is associated with
  * @param link is the plaintext name whose existence we are verifying
@@ -324,7 +324,11 @@ and deleteLinks postHash =
     debug("Links not deleted: " ^ (Printexc.to_string e));
     false
 
-let readPost hash  =
+let readPost hash =
   (* get returns entry corresponding to the hash
      or a HashNotFound message *)
   PostData.get hash ~options:(Entry.GetOptions.t ~local:true ())
+
+
+include Builder.Build(Genesis.Success)(Sendreceive.Unit)
+
