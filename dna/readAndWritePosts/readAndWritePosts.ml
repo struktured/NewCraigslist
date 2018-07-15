@@ -23,21 +23,8 @@ module Builder = Zome.Builder (Z)
 
 module PostData =
   struct
-
-  module T = struct
-    let name = "postData"
-    type t =
-      {
-        title:string;
-        category:string;
-        subcategory:string option;
-        city:string;
-        email:string;
-        timestamp:int;
-      } [@@deriving bs.abstract]
-  end
-  module Validate = Validate.Accept_all(T)
-  include Builder.Entry0(T)(Validate)
+  module Validate = Validate.Accept_all(Post_schema)
+  include Builder.Entry0(Post_schema)(Validate)
 end
 
 module StringEntry =

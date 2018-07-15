@@ -1,7 +1,7 @@
+let name = "postData"
 type t =
   {
-    title: string;
-    category : string;
+    title: string; category : string;
     subcategory: string option;
     city:string;
     email:string;
