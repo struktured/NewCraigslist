@@ -27,9 +27,9 @@ module Genesis : Genesis.S = struct
            (t
              [|
                (Link.t
-                  ~base:(App.DNA.hash :> App.DNA.hash)
+                  ~base:(App0.DNA0.hash ())
                   ~tag:"peer"
-                  ~link:App.Key.hash
+                  ~link:(App0.Key0.hash())
                   ()
                )
              |]
@@ -45,7 +45,7 @@ module Sendreceive = struct
   module T = struct
     type input = { msg:string } [@@deriving bs.abstract]
     type output = string [@@deriving bs.abstract]
-    let receive (_:App.Agent.hash) {msg} =
+    let receive (_:App0.Agent0.hash) {msg} =
       Js.log2 "receive: " msg;
       msg
   end
@@ -69,18 +69,18 @@ let getPeers() =
   let possiblePeers =
   Links.get
       ?options:None
-      ~base:App.DNA.hash ~tag:"peer" in
+      ~base:(App0.DNA0.hash()) ~tag:"peer" in
       Belt_Array.keepMap possiblePeers
         (function
           | `Hash hash ->
             (try
-               let hashString = (HashString.create hash :> App.Key.hash) in
+               let hashString = (HashString.create hash :> App0.Key0.hash) in
                let _res =
                  Sendreceive.send hashString
                    Sendreceive.T.{msg="hi"} in
                Some
                  (GetPeers.T.
-                    {me=HashString.equals App.Key.hash hashString;
+                    {me=HashString.equals (App0.Key0.hash ()) hashString;
                      address=hash
                     }
                  )

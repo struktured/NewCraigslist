@@ -135,7 +135,7 @@ let linkCheck
       );
     None
    in
-   let me = App.Agent.hash in
+   let me = App0.Agent0.hash () in
    let cityAndCat = CityAndCat.makeHash
        (data.city ^ data.category) in
   (* Check and create any links that may not yet exist *)
@@ -203,7 +203,7 @@ let retrieveLinks
 *)
 
 let readYourPosts() =
-  retrieveLinks (module PostData) App.Agent.hash postsByUser
+  retrieveLinks (module PostData) (App0.Agent0.hash ()) postsByUser
 
 (**
  * @param city name
@@ -256,7 +256,7 @@ let rec removePost postHash =
  * @returns true if the deletion was successful and false otherwise
  *)
 and deletePost postHash =
-  let message = postHash ^ " deleted by " ^ App.Agent.hash in
+  let message = postHash ^ " deleted by " ^ (App0.Agent0.hash ()) in
   try
     let _hash = PostData.remove ~message postHash in true
   with _e ->
@@ -267,7 +267,7 @@ and deletePost postHash =
  * @returns true if the links were deleted and false otherwise
  *)
 and deleteLinks postHash =
-  let me = App.Agent.hash in
+  let me = App0.Agent0.hash () in
   match PostData.get postHash with
   | None -> false
   | Some data ->

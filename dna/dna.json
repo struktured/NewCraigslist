@@ -17,7 +17,7 @@
     {
       "Name": "peerVis",
       "Desription": "show whos online",
-      "CodeFile": "peerVis.bs.js",
+      "CodeFile": "peerVis.bundle.js",
       "RibosomeType": "js",
       "Config": {
         "ErrorHandling": "throwErrors"
@@ -39,7 +39,7 @@
     {
       "Name": "readAndWritePosts",
       "Description": "read and write posts",
-      "CodeFile": "readAndWritePosts.js",
+      "CodeFile": "readAndWritePosts.bundle.js",
       "RibosomeType": "js",
       "BridgeFuncs": null,
       "Config": null,
