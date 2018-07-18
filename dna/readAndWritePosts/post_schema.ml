@@ -1,9 +1,10 @@
 let name = "postData"
 type t =
   {
-    title: string; category : string;
-    subcategory: string option;
+    title: string;
+    category : string;
+    subcategory: string Js.Null.t;
     city:string;
     email:string;
     timestamp:int;
-  } [@@deriving bs.abstract]
+  } [@@bs.deriving abstract]

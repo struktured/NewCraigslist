@@ -22,8 +22,8 @@ end
 
 module Genesis : Genesis.S = struct
   let genesis () =
-    let hash = PeerLink.commit
-        (PeerLink.
+  let peerLink =
+    PeerLink.
            (t
              [|
                (Link.t
@@ -33,9 +33,10 @@ module Genesis : Genesis.S = struct
                   ()
                )
              |]
-           )
-        )
-    in
+           ) in
+    Js.log2 "genesis: peerLink="
+      (PeerLink.toJson peerLink |> Js.Json.stringify);
+    let hash = PeerLink.commit peerLink in
     Js.log2 "genesis: hash=" hash;
     true
 end
@@ -43,11 +44,11 @@ end
 
 module Sendreceive = struct
   module T = struct
-    type input = { msg:string } [@@deriving bs.abstract]
-    type output = string [@@deriving bs.abstract]
-    let receive (_:App0.Agent.hash) {msg} =
-      Js.log2 "receive: " msg;
-      msg
+    type input = { msg:string } [@@bs.deriving abstract]
+    type output = string
+    let receive (_:App0.Agent.hash) (m:input) =
+      Js.log2 "receive: " (msg m);
+      msg m
   end
   include Sendreceive.Make(T)
 end
@@ -77,7 +78,7 @@ let getPeers() =
                let hashString = (HashString.create hash :> App0.Key.hash) in
                let _res =
                  Sendreceive.send hashString
-                   Sendreceive.T.{msg="hi"} in
+                   (Sendreceive.T.input ~msg:"hi") in
                Some
                  (GetPeers.T.
                     {me=HashString.equals App0.Key.hash hashString;

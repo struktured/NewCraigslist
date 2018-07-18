@@ -23,8 +23,9 @@ module Builder = Zome.Builder (Z)
 
 module PostData =
   struct
-  module Validate = Validate.Accept_all(Post_schema)
-  include Builder.Entry0(Post_schema)(Validate)
+    include Post_schema
+    module Validate = Validate.Accept_all(Post_schema)
+    include (Builder.Entry0(Post_schema)(Validate) : Entry.S with type t := t)
 end
 
 module StringEntry =
@@ -65,7 +66,7 @@ module Category =
 module CityAndCat =
   StringEntry.Make
     (struct
-      let name = cityAndCategory
+      let name = "cityAndCat"
       type t = string
     end
     )
@@ -86,9 +87,12 @@ end
  **)
 let linkCheck
     (module E:StringEntry.S) (link:string) =
+  Js.log2 "linkCheck: for link " link;
+  debug(sprintf "linkCheck for link %s" link);
   let hashedKeyAndLink =
     E.makeHash link in
-  (**
+  Js.log2 "linkCheck: hash=" hashedKeyAndLink;
+   (**
    * This block takes care of the case where duplicate entry has been deleted
    * and is then re-linked. get returns an error that the link has been deleted
    * This may be sort of an edge case, although I could see how someone might
@@ -136,12 +140,15 @@ let linkCheck
     None
    in
    let me = App0.Agent.hash in
-   let cityAndCat = CityAndCat.makeHash
-       (data.city ^ data.category) in
+   let city = PostData.city data in
+   let category = PostData.category data in
+   let cityAndCat = city ^ category in
+   debug(sprintf "writePost: making hash for %s" cityAndCat);
+   let cityAndCatHash = CityAndCat.makeHash cityAndCat in
   (* Check and create any links that may not yet exist *)
-    linkCheck (module CityAndCat) (data.city ^ data.category);
-    linkCheck (module City) data.city;
-    linkCheck (module Category) data.category;
+   linkCheck (module CityAndCat) cityAndCat;
+   linkCheck (module City) city;
+   linkCheck (module Category) category;
   match hash with None -> failwith "no hash" | Some hash ->
   try
     CityLinks.commit
@@ -149,30 +156,30 @@ let linkCheck
         Links.t
       [|
         Links.Link.t
-          ~tag:postsByUser
           ~base:me
           ~link:hash
-          ();
+          ~tag:postsByUser
+           ();
         Links.Link.t
-          ~base:(City.makeHash data.city)
+          ~base:(City.makeHash city)
           ~link:hash
           ~tag:postsByCity
           ();
         Links.Link.t
-          ~base:(Category.makeHash data.category)
+          ~base:(Category.makeHash category)
           ~link:hash
           ~tag:postsByCategory
           ();
         Links.Link.t
-          ~base:cityAndCat
+          ~base:cityAndCatHash
           ~link:hash
-          ~tag:CityAndCat.name
+          ~tag:cityAndCategory
           ()
       |]
-      ) |> fun x -> Some x
+      ) |> fun _ -> Js.Null.return hash
   with e ->
     debug (sprintf "Error committing links %s" (Printexc.to_string e));
-    None
+    Js.Null.empty
 
 (**
  * @param hash is hashedLink we are retrieving (ie. target value)
@@ -188,7 +195,7 @@ let retrieveLinks
        ~options:
          (Links.Options.t
             ~load:true
-            ~statusMask:Constants.System.Status.any
+            ~statusMask:System.Status.any
          )
    with e ->
      debug("Unable to retrieve links " ^ (Printexc.to_string e));
@@ -211,7 +218,7 @@ let readYourPosts() =
  *)
 
 let readPostsByCity city =
-  retrieveLinks (module City) (City.makeHash city) postsByCity
+  retrieveLinks (module PostData) (City.makeHash city) postsByCity
 
 (**
  * @param category name
@@ -219,7 +226,7 @@ let readPostsByCity city =
  *)
 
 let readPostsByCategory category =
-  retrieveLinks (module Category) (Category.makeHash category) postsByCategory
+  retrieveLinks (module PostData) (Category.makeHash category) postsByCategory
 
 (**
  * @param data is a JSON object: {"city":<name_of_city>, "category": <name_of_category}
@@ -228,7 +235,7 @@ let readPostsByCategory category =
 
 let readPostsByCityAndCategory (data:PostData.t) =
   let hashedCat = CityAndCat.makeHash
-      (data.city ^ data.category) in
+      (PostData.city data ^ PostData.category data) in
   retrieveLinks (module CityAndCat) hashedCat cityAndCategory
 
 (**
@@ -271,7 +278,8 @@ and deleteLinks postHash =
   match PostData.get postHash with
   | None -> false
   | Some data ->
-    let cityAndCat = CityAndCat.makeHash (data.city ^ data.category) in
+    let cityAndCatHash =
+      CityAndCat.makeHash (PostData.city data ^ PostData.category data) in
   try
     CityLinks.commit
       (Links.
@@ -285,21 +293,21 @@ and deleteLinks postHash =
                 ()
               ;
               Link.t
-                ~base:(City.makeHash data.city)
+                ~base:(City.makeHash (PostData.city data))
                 ~link:postHash
                 ~tag:postsByCity
                 ~linkAction:System.LinkAction.del
                 ()
               ;
               Link.t
-                ~base:(Category.makeHash data.category)
+                ~base:(Category.makeHash (PostData.category data))
                 ~link:postHash
                 ~tag:postsByCategory
                 ~linkAction:System.LinkAction.del
                 ()
               ;
               Link.t
-                ~base:cityAndCat
+                ~base:cityAndCatHash
                 ~link:postHash
                 ~tag:cityAndCategory
                 ~linkAction:System.LinkAction.del
@@ -314,7 +322,7 @@ and deleteLinks postHash =
 let readPost hash =
   (* get returns entry corresponding to the hash
      or a HashNotFound message *)
-  PostData.get hash ~options:(Entry.GetOptions.t ~local:true ())
+  PostData.get hash ~options:(Entry.GetOptions.t ~local:true ()) |> Js.Null.fromOption
 
 
 include Builder.Build(Genesis.Success)(Sendreceive.Unit)
