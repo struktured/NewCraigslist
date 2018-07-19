@@ -5,18 +5,20 @@ module Z =
   struct
     let name = "peerVis"
   end (* TODO add this instantiation arg to builder *)
+module Builder = Zome.Builder(Z)
 
 module PeerLink =
 struct
   include Links
 
   (* TODO - wrong: should be provided by B.Add *)
-  include (
-    Entry.Make(struct
-      let name = "peerLink"
-      type nonrec t = t
-    end) : Entry.S with type t := t
-  )
+  module T = struct
+    let name = "peerLink"
+    type t = Links.t
+  end 
+
+  include
+    (Builder.Entry0(T)(Validate.Accept_all(T)) : Entry.S with type t := t)
 end
 
 
@@ -70,7 +72,7 @@ let getPeers() =
   let possiblePeers =
   Links.get
       ?options:None
-      ~base:App0.DNA.hash ~tag:"peer" in
+      App0.DNA.hash ~tag:"peer" in
       Belt_Array.keepMap possiblePeers
         (function
           | `Hash hash ->
@@ -91,7 +93,4 @@ let getPeers() =
         )
 
 
-module B = Zome.Builder(Z)
-module PeerLink' = B.Entry(PeerLink)(ValidatePeerLink)
-
-include B.Build(Genesis)(Sendreceive)
+include Builder.Build(Genesis)(Sendreceive)
