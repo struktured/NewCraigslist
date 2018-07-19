@@ -191,11 +191,11 @@ let retrieveLinks
   entry array =
   (* if link doesn't exist then return emptyif (get(hash) === null) return [];*)
   (try
-     Links.get ~tag ~base:hash
+     Links.get ~tag hash
        ~options:
          (Links.Options.t
             ~load:true
-            ~statusMask:System.Status.any
+            ~statusMask:System.Status.live
          )
    with e ->
      debug("Unable to retrieve links " ^ (Printexc.to_string e));
@@ -236,18 +236,20 @@ let readPostsByCategory category =
 let readPostsByCityAndCategory (data:PostData.t) =
   let hashedCat = CityAndCat.makeHash
       (PostData.city data ^ PostData.category data) in
-  retrieveLinks (module CityAndCat) hashedCat cityAndCategory
+  retrieveLinks (module PostData) hashedCat cityAndCategory
 
 (**
  * @param data is a JSON object {"post":{<new data>}, "oldHash": "<previous_hash>"}
  * @returns hash of the updated post *)
 
-let editPost post oldHash =
+type edit = {post:PostData.t;oldHash:PostData.t HashString.t} [@@bs.deriving abstract]
+
+let editPost edit =
   try
-    PostData.update post oldHash
+    PostData.update (post edit) (oldHash edit)
   with e ->
     debug("Update not made: " ^ (Printexc.to_string e));
-    oldHash
+    (oldHash edit)
 
 (**
  * @param postHash is the hash of the post to delete
