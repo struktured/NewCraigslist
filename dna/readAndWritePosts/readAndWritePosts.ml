@@ -25,7 +25,10 @@ module PostData =
   struct
     include Post_schema
     module Validate = Validate.Accept_all(Post_schema)
-    include (Builder.Entry0(Post_schema)(Validate) : Entry.S with type t := t)
+    include (Builder.Entry0
+               (Post_schema)
+               (Validate) :
+               Entry.S with type t := t)
 end
 
 module StringEntry =
@@ -159,6 +162,7 @@ let linkCheck
           ~base:me
           ~link:hash
           ~tag:postsByUser
+          ~linkAction:System.LinkAction.add
            ();
         Links.Link.t
           ~base:(City.makeHash city)
@@ -169,12 +173,14 @@ let linkCheck
           ~base:(Category.makeHash category)
           ~link:hash
           ~tag:postsByCategory
-          ();
+          ~linkAction:System.LinkAction.add
+           ();
         Links.Link.t
           ~base:cityAndCatHash
           ~link:hash
           ~tag:cityAndCategory
-          ()
+          ~linkAction:System.LinkAction.add
+           ()
       |]
       ) |> fun _ -> Js.Null.return hash
   with e ->
@@ -185,11 +191,8 @@ let linkCheck
  * @param hash is hashedLink we are retrieving (ie. target value)
  * @param tag is the tag given when the link was created (ie. the relationship btwn link and base)
  * @returns an array of entries matching the hash given *)
-let retrieveLinks
-    (type entry)
-    (module Entry : Entry.S with type t = entry) hash tag :
-  entry array =
-  (* if link doesn't exist then return emptyif (get(hash) === null) return [];*)
+let retrieveLinks hash tag :
+  PostData.t array =
   (try
      Links.get ~tag hash
        ~options:
@@ -201,7 +204,9 @@ let retrieveLinks
      debug("Unable to retrieve links " ^ (Printexc.to_string e));
      [||]
   ) |>
-  Links.unpack (module Entry) |> fun arr ->
+  Links.unpack (module PostData) |> fun arr ->
+  Belt_Array.forEach arr (fun t ->
+      Js.log2 "postData array elem:" (Js.Json.stringify (PostData.toJson t.entry)));
   Belt_Array.map arr (fun {entry} -> entry)
 
 
@@ -209,8 +214,8 @@ let retrieveLinks
  * @returns all the posts of the current user
 *)
 
-let readYourPosts() =
-  retrieveLinks (module PostData) App0.Agent.hash postsByUser
+let readYourPosts () =
+  retrieveLinks App0.Agent.hash postsByUser
 
 (**
  * @param city name
@@ -218,25 +223,28 @@ let readYourPosts() =
  *)
 
 let readPostsByCity city =
-  retrieveLinks (module PostData) (City.makeHash city) postsByCity
+  retrieveLinks (City.makeHash city) postsByCity
 
 (**
  * @param category name
  * @returns all the posts for the given category
  *)
-
 let readPostsByCategory category =
-  retrieveLinks (module PostData) (Category.makeHash category) postsByCategory
+  retrieveLinks (Category.makeHash category) postsByCategory
 
 (**
  * @param data is a JSON object: {"city":<name_of_city>, "category": <name_of_category}
- * @returns all the posts for the given city and category 
+ * @returns all the posts for the given city and category
  *)
 
-let readPostsByCityAndCategory (data:PostData.t) =
+module CityCat = struct
+  type t = {city:string;category:string} [@@bs.deriving abstract]
+end
+
+let readPostsByCityAndCategory (data:CityCat.t) =
   let hashedCat = CityAndCat.makeHash
-      (PostData.city data ^ PostData.category data) in
-  retrieveLinks (module PostData) hashedCat cityAndCategory
+      (CityCat.city data ^ CityCat.category data) in
+  retrieveLinks hashedCat cityAndCategory
 
 (**
  * @param data is a JSON object {"post":{<new data>}, "oldHash": "<previous_hash>"}

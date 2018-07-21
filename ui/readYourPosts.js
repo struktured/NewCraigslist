@@ -7,7 +7,7 @@ document.getElementById("seeYourPostButton").onclick = function onClick(event) {
   xhr.send();
   xhr.onreadystatechange = function() {
     if (xhr.readyState == XMLHttpRequest.DONE) {
-      console.log(xhr.responseText);
+      console.log("read your posts: " + xhr.responseText);
       localStorage.setItem("postsData", xhr.responseText);
       localStorage.setItem("isCategory", false);
     }

@@ -74,25 +74,7 @@
       "Zome": "readAndWritePosts",
       "FnName": "readPostsByCity",
       "Input": "Kelowna",
-      "Output": [
-        {
-          "title": "Paint my fence?",
-          "category": "Personals",
-          "city": "Kelowna",
-          "details": "And other outdoor sports",
-          "email": "ktown@gmail.com",
-          "timestamp": 12345
-        },
-        {
-          "title": "Paint my fence?",
-          "category": "Jobs",
-          "city": "Kelowna",
-          "details":
-            "My fence is in need of a new coat of paint and primer. Will pay handsomely.",
-          "email": "earnest@gmail.com",
-          "timestamp": 12345
-        }
-      ]
+      "Regexp": ".*Jobs.*Personals.*"
     },
     {
       "Convey":

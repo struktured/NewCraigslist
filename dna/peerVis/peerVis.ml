@@ -44,7 +44,7 @@ module Genesis : Genesis.S = struct
 end
 
 
-module Sendreceive = struct
+module DirectMessage = struct
   module T = struct
     type input = { msg:string } [@@bs.deriving abstract]
     type output = string
@@ -63,9 +63,11 @@ module T = struct
   module Zome = Z
   let name = "getPeers"
   type input = unit
-  type output = {me:bool;address:[`Key] HashString.t} [@@deriving bs.abstract]
+  type output = {me:bool;address:[`Key] HashString.t} [@@bs.deriving abstract]
 end
-include Function.Make(T)
+include T
+include (Function.Make(T) :
+           Function.S with type input := input and type output := output)
 end
 
 let getPeers() =
@@ -79,13 +81,13 @@ let getPeers() =
             (try
                let hashString = (HashString.create hash :> App0.Key.hash) in
                let _res =
-                 Sendreceive.send hashString
-                   (Sendreceive.T.input ~msg:"hi") in
+                 DirectMessage.send hashString
+                   (DirectMessage.T.input ~msg:"hi") in
                Some
-                 (GetPeers.T.
-                    {me=HashString.equals App0.Key.hash hashString;
-                     address=hash
-                    }
+                 (GetPeers.output
+                    ~me:
+                      (HashString.equals App0.Key.hash hashString)
+                    ~address:hash
                  )
              with _ -> None
             )
@@ -93,4 +95,4 @@ let getPeers() =
         )
 
 
-include Builder.Build(Genesis)(Sendreceive)
+include Builder.Build(Genesis)(DirectMessage)
