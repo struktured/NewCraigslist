@@ -1,5 +1,6 @@
 window.onload = function() {
-  var posts = JSON.parse(localStorage.getItem("postsData"));
+  var posts1 = localStorage.getItem("postsData");
+  var posts = posts1 === "" ? [] : JSON.parse(posts1);
   var isCategory = JSON.parse(localStorage.getItem("isCategory"));
 
   console.log(posts);

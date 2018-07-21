@@ -24,7 +24,7 @@ module Builder = Zome.Builder (Z)
 module PostData =
   struct
     include Post_schema
-    module Validate = Validate.Accept_all(Post_schema)
+    module Validate = Validate.Trace(Post_schema)
     include (Builder.Entry0
                (Post_schema)
                (Validate) :
@@ -45,7 +45,7 @@ struct
 
   module Make(E:S0) : S with type t = string =
   struct
-    include Builder.Entry0(E)(Validate.Accept_all(E))
+    include Builder.Entry0(E)(Validate.Trace(E))
   end
 
 end
@@ -81,7 +81,7 @@ module CityLinks =
           let name = "cityLinks"
           type t = Links.t
         end
-  include Builder.Entry0(T)(Validate.Accept_all(T))
+  include Builder.Entry0(T)(Validate.Trace(T))
 end
 (**
  * @param key is the tag the link is associated with
@@ -193,20 +193,23 @@ let linkCheck
  * @returns an array of entries matching the hash given *)
 let retrieveLinks hash tag :
   PostData.t array =
-  (try
-     Links.get ~tag hash
+  debug ("bs: retrieveLinks: start", hash, tag);
+   (try
+     let links = Links.get ~tag hash
        ~options:
          (Links.Options.t
             ~load:true
             ~statusMask:System.Status.live
-         )
+         ) in
+     debug ("bs: retrieveLinks (packed): ", links);
+     links
    with e ->
-     debug("Unable to retrieve links " ^ (Printexc.to_string e));
+     debug("bs: Unable to retrieve links " ^ (Printexc.to_string e));
      [||]
   ) |>
   Links.unpack (module PostData) |> fun arr ->
   Belt_Array.forEach arr (fun t ->
-      Js.log2 "postData array elem:" (Js.Json.stringify (PostData.toJson t.entry)));
+      Js.log2 "bs: postData array elem:" (Js.Json.stringify (PostData.toJson t.entry)));
   Belt_Array.map arr (fun {entry} -> entry)
 
 
@@ -215,6 +218,7 @@ let retrieveLinks hash tag :
 *)
 
 let readYourPosts () =
+  debug("bs: readYourPosts ()");
   retrieveLinks App0.Agent.hash postsByUser
 
 (**
@@ -223,13 +227,15 @@ let readYourPosts () =
  *)
 
 let readPostsByCity city =
-  retrieveLinks (City.makeHash city) postsByCity
+  debug("bs: readPostsByByCity ()");
+ retrieveLinks (City.makeHash city) postsByCity
 
 (**
  * @param category name
  * @returns all the posts for the given category
  *)
 let readPostsByCategory category =
+  debug("bs: readPostsByCategory ()");
   retrieveLinks (Category.makeHash category) postsByCategory
 
 (**
@@ -242,7 +248,8 @@ module CityCat = struct
 end
 
 let readPostsByCityAndCategory (data:CityCat.t) =
-  let hashedCat = CityAndCat.makeHash
+  debug ("bs: readPostsByCityAndCategory ()", data);
+   let hashedCat = CityAndCat.makeHash
       (CityCat.city data ^ CityCat.category data) in
   retrieveLinks hashedCat cityAndCategory
 
@@ -330,9 +337,11 @@ and deleteLinks postHash =
     false
 
 let readPost hash =
+  debug("bs: readPost", hash);
   (* get returns entry corresponding to the hash
      or a HashNotFound message *)
-  PostData.get hash ~options:(Entry.GetOptions.t ~local:true ()) |> Js.Null.fromOption
+  PostData.get hash ~options:(Entry.GetOptions.t ~local:true ())
+  |> Js.Null.fromOption
 
 
 include Builder.Build(Genesis.Success)(Sendreceive.Unit)
