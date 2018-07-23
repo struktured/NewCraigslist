@@ -74,7 +74,7 @@
       "Zome": "readAndWritePosts",
       "FnName": "readPostsByCity",
       "Input": "Kelowna",
-      "Regexp": ".*Jobs.*Personals.*"
+      "Regexp": ".*(Jobs|Personals).*(Jobs|Personals).*"
     },
     {
       "Convey":
