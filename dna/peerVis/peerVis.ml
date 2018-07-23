@@ -49,8 +49,8 @@ module DirectMessage = struct
     type input = { msg:string } [@@bs.deriving abstract]
     type output = string
     let receive (_:App0.Agent.hash) (m:input) =
-      Js.log2 "receive: " (msg m);
-      msg m
+      Js.log2 "receive: " (msgGet m);
+      msgGet m
   end
   include Sendreceive.Make(T)
 end
@@ -72,7 +72,7 @@ end
 
 let getPeers() =
   let possiblePeers =
-  Links.get
+  Links.links
       ?options:None
       App0.DNA.hash ~tag:"peer" in
       Belt_Array.keepMap possiblePeers

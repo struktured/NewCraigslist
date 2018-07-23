@@ -143,8 +143,8 @@ let linkCheck
     None
    in
    let me = App0.Agent.hash in
-   let city = PostData.city data in
-   let category = PostData.category data in
+   let city = PostData.cityGet data in
+   let category = PostData.categoryGet data in
    let cityAndCat = city ^ category in
    debug(sprintf "writePost: making hash for %s" cityAndCat);
    let cityAndCatHash = CityAndCat.makeHash cityAndCat in
@@ -195,11 +195,12 @@ let retrieveLinks hash tag :
   PostData.t array =
   debug ("bs: retrieveLinks: start", hash, tag);
    (try
-     let links = Links.get ~tag hash
+     let links = Links.links ~tag hash
        ~options:
          (Links.Options.t
             ~load:true
             ~statusMask:System.Status.live
+            ()
          ) in
      debug ("bs: retrieveLinks (packed): ", links);
      links
@@ -250,7 +251,7 @@ end
 let readPostsByCityAndCategory (data:CityCat.t) =
   debug ("bs: readPostsByCityAndCategory ()", data);
    let hashedCat = CityAndCat.makeHash
-      (CityCat.city data ^ CityCat.category data) in
+      (CityCat.cityGet data ^ CityCat.categoryGet data) in
   retrieveLinks hashedCat cityAndCategory
 
 (**
@@ -261,10 +262,10 @@ type edit = {post:PostData.t;oldHash:PostData.t HashString.t} [@@bs.deriving abs
 
 let editPost edit =
   try
-    PostData.update (post edit) (oldHash edit)
+    PostData.update (postGet edit) (oldHashGet edit)
   with e ->
     debug("Update not made: " ^ (Printexc.to_string e));
-    (oldHash edit)
+    (oldHashGet edit)
 
 (**
  * @param postHash is the hash of the post to delete
@@ -283,8 +284,9 @@ and deletePost postHash =
   let message = postHash ^ " deleted by " ^ App0.Agent.hash in
   try
     let _hash = PostData.remove ~message postHash in true
-  with _e ->
-   (*debug(postHash + " not deleted: " + exception);*)
+  with e ->
+   debug(postHash ^ " not deleted: " ^
+         Printexc.to_string e);
     false
 (**
  * @param postHash is the hash of the post to delete
@@ -295,8 +297,10 @@ and deleteLinks postHash =
   match PostData.get postHash with
   | None -> false
   | Some data ->
+    debug("bs: deleteLinks, data=", data);
     let cityAndCatHash =
-      CityAndCat.makeHash (PostData.city data ^ PostData.category data) in
+      CityAndCat.makeHash
+        (PostData.cityGet data ^ PostData.categoryGet data) in
   try
     CityLinks.commit
       (Links.
@@ -310,14 +314,14 @@ and deleteLinks postHash =
                 ()
               ;
               Link.t
-                ~base:(City.makeHash (PostData.city data))
+                ~base:(City.makeHash (PostData.cityGet data))
                 ~link:postHash
                 ~tag:postsByCity
                 ~linkAction:System.LinkAction.del
                 ()
               ;
               Link.t
-                ~base:(Category.makeHash (PostData.category data))
+                ~base:(Category.makeHash (PostData.categoryGet data))
                 ~link:postHash
                 ~tag:postsByCategory
                 ~linkAction:System.LinkAction.del
@@ -340,9 +344,10 @@ let readPost hash =
   debug("bs: readPost", hash);
   (* get returns entry corresponding to the hash
      or a HashNotFound message *)
-  PostData.get hash ~options:(Entry.GetOptions.t ~local:true ())
-  |> Js.Null.fromOption
-
+  match PostData.get hash ~options:(Entry.GetOptions.t ~local:true ())
+  with 
+  | None -> Js.Json.string System.hashNotFound
+  | Some post -> PostData.toJson post
 
 include Builder.Build(Genesis.Success)(Sendreceive.Unit)
 
