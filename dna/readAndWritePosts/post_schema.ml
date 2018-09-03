@@ -3,7 +3,8 @@ type t =
   {
     title: string;
     category : string;
-    subcategory: string Js.Null.t;
+    subcategory: string [@bs.optional];
+    details: string;
     city:string;
     email:string;
     timestamp:int;
