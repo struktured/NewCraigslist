@@ -1,7 +1,9 @@
 {
   "name": "new-craigslist",
+  "bsc-flags": ["-bs-super-errors"],
+  "reason": {"react-jsx" : 2},
   "version": "0.1.0",
-  "sources": 
+  "sources":
     [
       {
         "dir" : "dna/peerVis",
@@ -12,6 +14,11 @@
         "dir" : "dna/readAndWritePosts",
         "subdirs" : false,
         "public" : "all"
+      },
+      {
+        "dir" : "ui/",
+        "subdirs" : true,
+        "public" : "all"
       }
     ],
   "package-specs": {
@@ -20,11 +27,13 @@
   },
   "suffix": ".bs.js",
   "bs-dependencies": [
-    "bs-holochain"
+    "bs-holochain",
+    "reason-react",
+    "bs-fetch",
+    "@glennsl/bs-json"
   ],
   "warnings": {
     "error" : "-101"
   },
-  "bsc-flags": ["-bs-super-errors"],
-  "refmt": 3
+ "refmt": 3
 }
